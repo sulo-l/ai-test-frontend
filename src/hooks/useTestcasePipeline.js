@@ -8,6 +8,13 @@ import { useState, useRef } from "react";
  * 3️⃣ Excel / UI / 后端 total 三方一致
  * 4️⃣ 原有结构 & API 100% 不变
  */
+
+// ================= API BASE（唯一增强，非逻辑修改） =================
+const API_BASE =
+    window.__ENV__?.API_BASE ||
+    (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_BASE) ||
+    "http://127.0.0.1:8000"; // ✅ CRA / 本地最终兜底
+
 export default function useTestcasePipeline() {
     const [status, setStatus] = useState("idle");
     const [requirement, setRequirement] = useState("");
@@ -94,15 +101,14 @@ export default function useTestcasePipeline() {
         formData.append("requirement", requirement || "");
 
         try {
-            const res = await fetch(
-                "http://127.0.0.1:8000/generate-testcases/stream",
-                {
-                    method: "POST",
-                    body: formData,
-                    signal: controller.signal,
-                    headers: { Accept: "text/event-stream" },
-                }
-            );
+            const res = await fetch(`${API_BASE}/generate-testcases/stream`, {
+                method: "POST",
+                body: formData,
+                signal: controller.signal,
+                headers: {
+                    Accept: "text/event-stream",
+                },
+            });
 
             if (!res.ok || !res.body) {
                 throw new Error("SSE connection failed");
@@ -160,13 +166,11 @@ export default function useTestcasePipeline() {
             }
 
             case "case": {
-                // ✅ 防止 done 之后尾包污染统计
                 if (finishedRef.current) return;
 
                 const c = payload.data?.case || payload.data;
                 if (!c || !c.test_point_id) return;
 
-                // 精准挂载
                 for (const m of bufferRef.current) {
                     for (const p of m.points) {
                         if (p.id === c.test_point_id) {
@@ -197,7 +201,6 @@ export default function useTestcasePipeline() {
                 setDownloadReady(true);
 
                 if (typeof payload.data?.total === "number") {
-                    // ✅ 用后端 total 作为最终唯一真值
                     caseCountRef.current = payload.data.total;
                     setCaseCount(payload.data.total);
                     setProgress({

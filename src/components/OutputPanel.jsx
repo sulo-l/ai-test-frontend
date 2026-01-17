@@ -2,6 +2,18 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import AgentCaseLoading from "./AgentCaseLoading";
 
+/**
+ * ================= API BASE（唯一新增） =================
+ * 优先级：
+ * 1️⃣ window.__ENV__（Docker / 生产）
+ * 2️⃣ VITE_API_BASE（本地 / build）
+ * 3️⃣ 空字符串（nginx 同源）
+ */
+const API_BASE =
+    window.__ENV__?.API_BASE ||
+    import.meta.env.VITE_API_BASE ||
+    "";
+
 export default function OutputPanel({
                                         status = "idle",
                                         testPoints = [],
@@ -23,7 +35,7 @@ export default function OutputPanel({
         const link = document.createElement("a");
         link.href = downloadUrl.startsWith("http")
             ? downloadUrl
-            : `http://127.0.0.1:8000${downloadUrl}`;
+            : `${API_BASE}${downloadUrl}`;
 
         link.download = t("output.download.filename");
         document.body.appendChild(link);
@@ -46,30 +58,30 @@ export default function OutputPanel({
 
                 {/* 状态 + 用例条数 */}
                 <div className="flex flex-col items-end gap-1">
-          <span
-              className={`
+                    <span
+                        className={`
               text-xs px-3 py-1 rounded-full font-medium
               ${
-                  isRunning
-                      ? "bg-indigo-500/15 text-indigo-500"
-                      : isDone
-                          ? "bg-emerald-500/15 text-emerald-500"
-                          : "bg-slate-500/15 text-slate-400"
-              }
+                            isRunning
+                                ? "bg-indigo-500/15 text-indigo-500"
+                                : isDone
+                                    ? "bg-emerald-500/15 text-emerald-500"
+                                    : "bg-slate-500/15 text-slate-400"
+                        }
             `}
-          >
-            {isRunning
-                ? t("status.running")
-                : isDone
-                    ? t("status.done")
-                    : t("status.waiting")}
-          </span>
+                    >
+                        {isRunning
+                            ? t("status.running")
+                            : isDone
+                                ? t("status.done")
+                                : t("status.waiting")}
+                    </span>
 
                     {/* ✅ 只认 hook 传下来的最终数量 */}
                     {isDone && caseCount > 0 && (
                         <span className="text-xs text-slate-500 dark:text-slate-400">
-              {t("output.caseCount.done", { count: caseCount })}
-            </span>
+                            {t("output.caseCount.done", { count: caseCount })}
+                        </span>
                     )}
                 </div>
             </div>
