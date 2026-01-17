@@ -1,0 +1,109 @@
+{
+  "app": {
+    "title": "AI Test Agent Platform"
+  },
+
+  "header": {
+    "records": "Test Case Records",
+    "darkMode": "Dark Mode",
+    "lightMode": "Light Mode",
+    "language": "Language"
+  },
+
+  "status": {
+    "waiting": "Waiting",
+    "running": "Generating",
+    "done": "Completed"
+  },
+
+  "drawer": {
+    "title": "Test Case Records",
+    "search": {
+      "placeholder": "Search requirements / file name"
+    },
+    "empty": "No test case records",
+    "item": {
+      "status": {
+        "done": "Completed"
+      },
+      "view": "View",
+      "download": "Download"
+    }
+  },
+
+  "input": {
+    "title": "Test Generation Configuration",
+    "subtitle": "Upload requirement documents, AI agent will analyze and generate test cases",
+
+    "requirement": {
+      "label": "Additional Test Requirements (Optional)",
+      "placeholder": "e.g. focus on edge cases, exception scenarios, configuration persistence"
+    },
+
+    "pdf": {
+      "label": "Requirement Document (PDF)",
+      "upload": "Click or drag to upload PDF",
+      "tip": "Only PDF files are supported"
+    },
+
+    "actions": {
+      "generating": "Generating…",
+      "generate": "Generate Test Cases",
+      "reset": "Reset"
+    }
+  },
+
+  "output": {
+    "title": "Test Case Output",
+    "subtitle": "AI agent has automatically analyzed requirements and generated test coverage",
+
+    "empty": "Generated test results will be displayed here in real time.",
+
+    "module": "Module",
+    "viewPoints": "Click to view test points",
+    "expand": "Expand",
+    "collapse": "Collapse",
+
+    "noDetail": "No detailed test points",
+
+    "download": {
+      "label": "Download Excel Test Cases",
+      "filename": "AI_Test_Cases.xlsx"
+    },
+
+    "caseCount": {
+      "running": "{{count}} test cases generated",
+      "done": "Total {{count}} test cases"
+    }
+  },
+
+  "loading": {
+    "title": "AI agent is generating test cases",
+    "steps": [
+      "Analyzing functional modules",
+      "Constructing test points",
+      "Deriving test paths",
+      "Generating boundary and exception cases",
+      "Finalizing test results"
+    ],
+    "thinking": "AI agent is determining the optimal testing strategy…",
+    "progress": "{{current}} test cases generated"
+  },
+
+  "result": {
+    "idle": "Test cases will be displayed here after generation",
+
+    "running": {
+      "title": "🤖 AI is analyzing requirements and building the test model…",
+      "subtitle": "The first test case will be displayed automatically"
+    },
+
+    "empty": "⚠️ No valid test cases were generated, please check the requirements",
+
+    "module": "Module",
+    "tags": "Tags",
+    "precondition": "Precondition",
+    "steps": "Steps",
+    "expected": "Expected Result"
+  }
+}

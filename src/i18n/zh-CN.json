@@ -1,0 +1,109 @@
+{
+  "app": {
+    "title": "AI 智能体测试平台"
+  },
+
+  "header": {
+    "records": "测试用例记录",
+    "darkMode": "深色模式",
+    "lightMode": "浅色模式",
+    "language": "语言"
+  },
+
+  "status": {
+    "waiting": "等待中",
+    "running": "生成中",
+    "done": "已完成"
+  },
+
+  "drawer": {
+    "title": "测试用例记录",
+    "search": {
+      "placeholder": "搜索需求 / 文件名"
+    },
+    "empty": "暂无测试用例记录",
+    "item": {
+      "status": {
+        "done": "已完成"
+      },
+      "view": "查看",
+      "download": "下载"
+    }
+  },
+
+  "input": {
+    "title": "测试生成配置",
+    "subtitle": "上传需求文档，AI 智能体自动拆解并生成测试用例",
+
+    "requirement": {
+      "label": "补充测试要求（可选）",
+      "placeholder": "例如：重点关注异常场景、边界值、配置记忆功能"
+    },
+
+    "pdf": {
+      "label": "需求文档（PDF）",
+      "upload": "点击或拖拽上传 PDF",
+      "tip": "仅支持 PDF 文件"
+    },
+
+    "actions": {
+      "generating": "生成中…",
+      "generate": "生成测试用例",
+      "reset": "重置"
+    }
+  },
+
+  "output": {
+    "title": "测试用例输出",
+    "subtitle": "AI 智能体已自动识别需求并生成测试覆盖点",
+
+    "caseCount": {
+      "running": "已生成 {{count}} 条用例",
+      "done": "共生成 {{count}} 条用例"
+    },
+
+    "empty": "测试生成结果将在此区域实时呈现",
+
+    "module": "模块",
+    "viewPoints": "点击查看测试点",
+    "expand": "展开",
+    "collapse": "收起",
+
+    "noDetail": "暂无详细测试点",
+
+    "download": {
+      "label": "下载 Excel 测试用例",
+      "filename": "AI生成测试用例.xlsx"
+    }
+  },
+
+  "loading": {
+    "title": "AI 智能体正在生成测试用例",
+    "steps": [
+      "解析功能模块",
+      "构建测试点",
+      "推演测试路径",
+      "生成边界与异常用例",
+      "整理测试结果"
+    ],
+    "thinking": "AI 智能体正在思考最优测试路径…",
+    "progress": "已生成 {{current}} 条用例"
+  },
+
+  "result": {
+    "idle": "用例预览将在这里显示（生成后自动刷新）",
+
+    "running": {
+      "title": "🤖 AI 正在解析需求并构建测试模型…",
+      "subtitle": "首条测试用例生成后将自动展示"
+    },
+
+    "empty": "⚠️ 未生成有效测试用例，请检查需求内容",
+
+    "module": "模块",
+    "tags": "标签",
+    "precondition": "前置条件",
+    "steps": "步骤",
+    "expected": "预期结果"
+  }
+}

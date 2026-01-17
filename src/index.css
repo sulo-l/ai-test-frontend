@@ -1,0 +1,116 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------- 微噪点背景（极克制） ---------- */
+.noise-bg::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml;utf8,\
+<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'>\
+<filter id='n'>\
+  <feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/>\
+</filter>\
+<rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.35'/>\
+</svg>");
+}
+
+/* ---------- 卡片 hover 浮动 + 光影跟随 ---------- */
+.card-hover {
+  position: relative;
+  transition: transform 260ms ease, box-shadow 260ms ease, border-color 260ms ease;
+  will-change: transform, box-shadow;
+}
+
+.card-hover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 260ms ease;
+  background: radial-gradient(
+    520px 240px at var(--mx, 50%) var(--my, 0%),
+    rgba(56, 189, 248, 0.22),
+    transparent 62%
+  );
+}
+
+.card-hover:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.18);
+}
+
+.card-hover:hover::after {
+  opacity: 1;
+}
+
+/* ===== 全息波纹 ===== */
+@keyframes holo-wave {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+.animate-holo-wave-1 {
+  animation: holo-wave 2.8s ease-out infinite;
+}
+
+.animate-holo-wave-2 {
+  animation: holo-wave 2.8s ease-out infinite;
+  animation-delay: 1.4s;
+}
+
+/* ===== 扫描线 ===== */
+@keyframes holo-scan {
+  0% {
+    top: -20%;
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  50% {
+    top: 50%;
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    top: 120%;
+    opacity: 0;
+  }
+}
+
+.animate-holo-scan {
+  animation: holo-scan 2.4s ease-in-out infinite;
+}
+
+/* ===== 核心呼吸 ===== */
+@keyframes holo-core {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.15);
+  }
+}
+
+.animate-holo-core {
+  animation: holo-core 2s ease-in-out infinite;
+}
+
+
+
