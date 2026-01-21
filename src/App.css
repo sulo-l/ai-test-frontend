@@ -63,4 +63,16 @@
   animation: spin-reverse 11s linear infinite;
 }
 
+@keyframes flow {
+    0% {
+        background-position: 0% 50%;
+    }
+    100% {
+        background-position: 200% 50%;
+    }
+}
+
+.animate-flow {
+    animation: flow 2.5s linear infinite;
+}
 

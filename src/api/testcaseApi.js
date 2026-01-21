@@ -1,47 +1,158 @@
 import axios from "axios";
 
 /**
- * API_BASE ¶ÁÈ¡ÓÅÏÈ¼¶£¨´Ó¸ßµ½µÍ£©£º
- * 1?? window.__ENV__.API_BASE   £¨Docker / Éú²úÔËÐÐÊ±£©
- * 2?? import.meta.env.VITE_API_BASE£¨±¾µØ / build Ê±£©
- * 3?? ¿Õ×Ö·û´®£¨×ß nginx ·´Ïò´úÀí /api£©
+ * ===============================
+ * âœ… API_BASEï¼ˆä¸Šçº¿æ€æœ€ç»ˆæ–¹æ¡ˆï¼‰
+ *
+ * å‰ç«¯æ°¸è¿œåªè¯·æ±‚å½“å‰åŸŸå
+ * ç”± Nginx è´Ÿè´£æŠŠ /api â†’ è½¬å‘åˆ°åŽç«¯ :8000
+ *
+ * ä¸å†ä½¿ç”¨ï¼š
+ * - window.__ENV__
+ * - REACT_APP_API_BASE
+ * - IP / ç«¯å£
+ * ===============================
  */
-const API_BASE =
-    window.__ENV__?.API_BASE ||
-    import.meta.env.VITE_API_BASE ||
-    "";
+const API_BASE = "/api";
 
 /**
- * Í³Ò» axios ÊµÀý
+ * ===============================
+ * axiosï¼ˆæ™®é€š HTTPï¼‰
+ * ===============================
  */
 const api = axios.create({
     baseURL: API_BASE,
-    timeout: 600000, // Éú³ÉÓÃÀý + ½âÎö PDF ¶¼¿ÉÄÜ±È½ÏÂý
+    timeout: 600000, // 10 åˆ†é’Ÿï¼Œé€‚é…å¤§æ¨¡åž‹
 });
 
-/**
- * ½âÎö PDF
- * POST /parse-pdf
- */
-export function parsePdf(file) {
-    const form = new FormData();
-    form.append("file", file);
+/* ======================================================
+ * Workflowï¼ˆæ™®é€š HTTP æŽ¥å£ï¼‰
+ * ====================================================== */
 
-    return api.post("/parse-pdf", form, {
-        headers: {
-            "Content-Type": "multipart/form-data",
-        },
-    });
+export async function createWorkflow() {
+    const res = await api.post("/workflow/create");
+    return res.data;
 }
 
-/**
- * Éú³É²âÊÔÓÃÀý²¢ÏÂÔØ Excel
- * POST /generate-testcases
- */
-export function generateTestcases(formData, onDownloadProgress) {
-    return api.post("/generate-testcases", formData, {
-        responseType: "blob",
-        timeout: 180000,
-        onDownloadProgress,
+export async function fetchWorkflowStatus(workflowId) {
+    const res = await api.get(`/workflow/status/${workflowId}`);
+    return res.data;
+}
+
+export async function uploadPdfToWorkflow(workflowId, file) {
+    const formData = new FormData();
+    formData.append("workflow_id", workflowId);
+    formData.append("file", file);
+
+    const res = await api.post("/workflow/upload-pdf", formData);
+    return res.data;
+}
+
+export async function analyzeWorkflow(workflowId) {
+    const res = await api.post("/workflow/analyze", {
+        workflow_id: workflowId,
     });
+    return res.data;
+}
+
+export async function resetWorkflow(workflowId) {
+    const res = await api.post(`/workflow/reset/${workflowId}`);
+    return res.data;
+}
+
+/* ======================================================
+ * âœ… SSEï¼šæµ‹è¯•ç”¨ä¾‹ç”Ÿæˆï¼ˆEventSourceï¼‰
+ * ====================================================== */
+
+/**
+ * âœ… requirement ç»Ÿä¸€è½¬ string
+ * é˜²æ­¢å‡ºçŽ° [object Object]
+ */
+function normalizeRequirement(requirement) {
+    if (requirement === null || requirement === undefined) return "";
+    if (typeof requirement === "string") return requirement;
+
+    if (typeof requirement === "object") {
+        try {
+            return JSON.stringify(requirement, null, 2);
+        } catch {
+            return String(requirement);
+        }
+    }
+
+    return String(requirement);
+}
+
+export function generateTestcasesStream({
+                                            workflowId,
+                                            requirement = "",
+                                            onMeta,
+                                            onCase,
+                                            onDone,
+                                            onError,
+                                        }) {
+    if (!workflowId) {
+        throw new Error("workflowId required");
+    }
+
+    const safeRequirement = normalizeRequirement(requirement);
+
+    /**
+     * âš ï¸ æ³¨æ„ï¼š
+     * EventSource ä¸èƒ½ç”¨ axios
+     * å¿…é¡»æ˜¯ã€ŒåŒæº + GETã€
+     */
+    const url =
+        `/api/workflow/generate/stream` +
+        `?workflow_id=${encodeURIComponent(workflowId)}` +
+        `&requirement=${encodeURIComponent(safeRequirement)}`;
+
+    console.log("[SSE] connect:", url);
+
+    const es = new EventSource(url);
+
+    es.addEventListener("meta", (e) => {
+        try {
+            onMeta?.(JSON.parse(e.data));
+        } catch (err) {
+            console.warn("meta parse failed", err);
+        }
+    });
+
+    es.addEventListener("case", (e) => {
+        try {
+            onCase?.(JSON.parse(e.data));
+        } catch (err) {
+            console.warn("case parse failed", err);
+        }
+    });
+
+    es.addEventListener("done", (e) => {
+        try {
+            onDone?.(JSON.parse(e.data));
+        } catch (err) {
+            console.warn("done parse failed", err);
+        } finally {
+            es.close();
+        }
+    });
+
+    es.onerror = (err) => {
+        console.error("[SSE error]", err);
+        es.close();
+        onError?.(err);
+    };
+
+    // ç»™ hook ç”¨çš„å…³é—­å‡½æ•°
+    return () => {
+        console.log("[SSE] close");
+        es.close();
+    };
+}
+
+/* ======================================================
+ * ä¸‹è½½ Excel
+ * ====================================================== */
+export function downloadExcel(downloadUrl) {
+    return api.get(downloadUrl, { responseType: "blob" });
 }

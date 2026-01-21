@@ -1,246 +1,218 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
+import {
+    generateTestcasesStream,
+    fetchWorkflowStatus,
+} from "../api/testcaseApi";
 
 /**
- * ✅ SSE 流式用例生成 Pipeline（最终稳定版）
- * 修复点：
- * 1️⃣ case 按 test_point_id 精准挂载（不广播）
- * 2️⃣ 不再 O(N×M) 全量复制，性能恢复
- * 3️⃣ Excel / UI / 后端 total 三方一致
- * 4️⃣ 原有结构 & API 100% 不变
+ * ===============================
+ * ⭐ 仅用于 requirements → string
+ * ===============================
  */
+function normalizeRequirementsOnly(input) {
+    if (!input) return "";
 
-// ================= API BASE（唯一增强，非逻辑修改） =================
-const API_BASE =
-    window.__ENV__?.API_BASE ||
-    (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_BASE) ||
-    "http://127.0.0.1:8000"; // ✅ CRA / 本地最终兜底
+    // 1️⃣ 已经是字符串（最理想情况）
+    if (typeof input === "string") {
+        return input;
+    }
 
-export default function useTestcasePipeline() {
-    const [status, setStatus] = useState("idle");
-    const [requirement, setRequirement] = useState("");
+    // 2️⃣ 直接是 requirements 数组
+    if (Array.isArray(input)) {
+        return input.join("\n");
+    }
 
-    const [pdfText, setPdfText] = useState("");
-    const [testPoints, setTestPoints] = useState([]);
+    // 3️⃣ 是 analysisResult 对象，只取 requirements
+    if (typeof input === "object") {
+        const reqs = input.requirements;
+        if (Array.isArray(reqs)) {
+            return reqs.join("\n");
+        }
+    }
 
-    const [bufferedTestPoints, setBufferedTestPoints] = useState([]);
-    const bufferRef = useRef([]);
+    // 兜底（理论上不该走到）
+    return "";
+}
 
+export default function useTestcasePipeline({ workflowId }) {
+    /* ================= 权威状态（非生成态） ================= */
+    const [workflowProgress, setWorkflowProgress] = useState(null);
+
+    /* ================= 内容态 ================= */
+    const [cases, setCases] = useState([]);
+    const casesRef = useRef([]);
+
+    /* ================= UI 状态 ================= */
+    const [status, setStatus] = useState("idle"); // idle | running | done | error
     const [progress, setProgress] = useState({ current: 0, total: 0 });
+    const [caseCount, setCaseCount] = useState(0);
+    const [hasAnyOutput, setHasAnyOutput] = useState(false);
+
     const [downloadReady, setDownloadReady] = useState(false);
     const [downloadUrl, setDownloadUrl] = useState("");
 
-    const abortRef = useRef(null);
+    /* ================= 控制 Ref ================= */
+    const sseCloseRef = useRef(null);
+    const startedRef = useRef(false);
     const finishedRef = useRef(false);
+    const pollingRef = useRef(true);
 
-    const [hasAnyOutput, setHasAnyOutput] = useState(false);
-    const hasAnyOutputRef = useRef(false);
+    /* ================= workflow/status 轮询（非生成态） ================= */
+    useEffect(() => {
+        if (!workflowId) return;
 
-    const [caseCount, setCaseCount] = useState(0);
-    const caseCountRef = useRef(0);
+        pollingRef.current = true;
+        let timer = null;
 
-    // ================= 重置 =================
-    const resetPipeline = () => {
-        abortRef.current?.abort();
-        abortRef.current = null;
-        finishedRef.current = false;
+        const poll = async () => {
+            if (!pollingRef.current || startedRef.current) return;
 
-        setRequirement("");
-        setPdfText("");
-        setTestPoints([]);
-        setBufferedTestPoints([]);
-        bufferRef.current = [];
+            try {
+                const data = await fetchWorkflowStatus(workflowId);
+                setWorkflowProgress(data);
 
-        setProgress({ current: 0, total: 0 });
-        setDownloadReady(false);
-        setDownloadUrl("");
-
-        setHasAnyOutput(false);
-        hasAnyOutputRef.current = false;
-
-        setCaseCount(0);
-        caseCountRef.current = 0;
-
-        setStatus("idle");
-    };
-
-    // ================= 中断 =================
-    const stopGeneration = () => {
-        abortRef.current?.abort();
-        abortRef.current = null;
-        finishedRef.current = true;
-        setStatus("idle");
-    };
-
-    // ================= 启动 SSE =================
-    const start = async (file) => {
-        if (!file || status === "running") return;
-
-        setStatus("running");
-        finishedRef.current = false;
-
-        setPdfText("");
-        setTestPoints([]);
-        setBufferedTestPoints([]);
-        bufferRef.current = [];
-
-        setProgress({ current: 0, total: 0 });
-        setDownloadReady(false);
-        setDownloadUrl("");
-
-        setHasAnyOutput(false);
-        hasAnyOutputRef.current = false;
-
-        setCaseCount(0);
-        caseCountRef.current = 0;
-
-        const controller = new AbortController();
-        abortRef.current = controller;
-
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("requirement", requirement || "");
-
-        try {
-            const res = await fetch(`${API_BASE}/generate-testcases/stream`, {
-                method: "POST",
-                body: formData,
-                signal: controller.signal,
-                headers: {
-                    Accept: "text/event-stream",
-                },
-            });
-
-            if (!res.ok || !res.body) {
-                throw new Error("SSE connection failed");
-            }
-
-            const reader = res.body.getReader();
-            const decoder = new TextDecoder("utf-8");
-            let buffer = "";
-
-            while (true) {
-                const { value, done } = await reader.read();
-                if (done) break;
-
-                buffer += decoder.decode(value, { stream: true });
-
-                let idx;
-                while ((idx = buffer.indexOf("\n\n")) !== -1) {
-                    const raw = buffer.slice(0, idx);
-                    buffer = buffer.slice(idx + 2);
-
-                    if (!raw.startsWith("data:")) continue;
-
-                    const json = raw.replace(/^data:\s*/, "").trim();
-                    if (!json) continue;
-
-                    handleEvent(JSON.parse(json));
+                if (data.stage === "generated") {
+                    setStatus("done");
+                } else if (data.stage === "analyzing") {
+                    setStatus("running");
+                } else {
+                    setStatus("idle");
                 }
-            }
-        } catch (err) {
-            if (err.name !== "AbortError") {
-                setStatus("error");
-            }
-        }
-    };
 
-    // ================= SSE 分发（核心修复） =================
-    const handleEvent = (payload) => {
-        if (finishedRef.current && payload.type !== "done") return;
-
-        switch (payload.type) {
-            case "test_points": {
-                if (bufferRef.current.length > 0) return;
-
-                const next = (payload.data || []).map((m) => ({
-                    module: m.module,
-                    points: (m.points || []).map((p) => ({
-                        ...p,
-                        cases: [],
-                    })),
+                setProgress((p) => ({
+                    ...p,
+                    current: data.progress ?? p.current,
                 }));
-
-                bufferRef.current = next;
-                setBufferedTestPoints(next);
-                break;
+            } catch (e) {
+                console.warn("workflow poll failed", e);
             }
+        };
 
-            case "case": {
-                if (finishedRef.current) return;
+        poll();
+        timer = setInterval(poll, 1000);
 
-                const c = payload.data?.case || payload.data;
-                if (!c || !c.test_point_id) return;
+        return () => {
+            pollingRef.current = false;
+            timer && clearInterval(timer);
+        };
+    }, [workflowId]);
 
-                for (const m of bufferRef.current) {
-                    for (const p of m.points) {
-                        if (p.id === c.test_point_id) {
-                            p.cases.push(c);
-                            break;
-                        }
-                    }
-                }
-
-                setBufferedTestPoints([...bufferRef.current]);
-
-                if (!hasAnyOutputRef.current) {
-                    hasAnyOutputRef.current = true;
-                    setHasAnyOutput(true);
-                }
-
-                caseCountRef.current += 1;
-                setCaseCount(caseCountRef.current);
-                setProgress((p) => ({ ...p, current: caseCountRef.current }));
-                break;
-            }
-
-            case "done": {
-                finishedRef.current = true;
-
-                setTestPoints(bufferRef.current);
-                setDownloadUrl(payload.data?.download_url || "");
-                setDownloadReady(true);
-
-                if (typeof payload.data?.total === "number") {
-                    caseCountRef.current = payload.data.total;
-                    setCaseCount(payload.data.total);
-                    setProgress({
-                        current: payload.data.total,
-                        total: payload.data.total,
-                    });
-                }
-
-                setHasAnyOutput(true);
-                setStatus("done");
-                abortRef.current?.abort();
-                break;
-            }
-
-            case "error":
-                finishedRef.current = true;
-                setStatus("error");
-                break;
-
-            default:
-                break;
+    /* ================= Reset ================= */
+    const resetPipeline = useCallback(() => {
+        if (sseCloseRef.current) {
+            sseCloseRef.current();
+            sseCloseRef.current = null;
         }
-    };
 
-    // ================= 返回 =================
+        startedRef.current = false;
+        finishedRef.current = false;
+        pollingRef.current = true;
+
+        casesRef.current = [];
+        setCases([]);
+        setCaseCount(0);
+        setHasAnyOutput(false);
+
+        setDownloadReady(false);
+        setDownloadUrl("");
+
+        setWorkflowProgress(null);
+        setStatus("idle");
+        setProgress({ current: 0, total: 0 });
+    }, []);
+
+    /* ================= 🚀 启动生成 ================= */
+    const start = useCallback(
+        (input = {}) => {
+            if (!workflowId) return;
+            if (startedRef.current) return;
+
+            startedRef.current = true;
+            finishedRef.current = false;
+            pollingRef.current = false;
+
+            setStatus("running");
+            setProgress({ current: 0, total: 0 });
+
+            casesRef.current = [];
+            setCases([]);
+            setCaseCount(0);
+            setHasAnyOutput(false);
+            setDownloadReady(false);
+            setDownloadUrl("");
+
+            if (sseCloseRef.current) {
+                sseCloseRef.current();
+                sseCloseRef.current = null;
+            }
+
+            /**
+             * ✅ 核心修复点：
+             * 只提取 requirements，并转成 string
+             */
+            const requirement = normalizeRequirementsOnly(
+                input?.requirement ?? input
+            );
+
+            try {
+                const close = generateTestcasesStream({
+                    workflowId,
+                    requirement,
+
+                    onMeta: () => {},
+
+                    onCase: (testCase) => {
+                        if (!testCase || finishedRef.current) return;
+                        casesRef.current.push(testCase);
+                        setCases([...casesRef.current]);
+                        setCaseCount(casesRef.current.length);
+                        setHasAnyOutput(true);
+                    },
+
+                    onDone: ({ download_url }) => {
+                        finishedRef.current = true;
+                        startedRef.current = false;
+
+                        setDownloadUrl(download_url || "");
+                        setDownloadReady(true);
+                        setStatus("done");
+
+                        pollingRef.current = true;
+                    },
+
+                    onError: (err) => {
+                        console.error("SSE error", err);
+                        finishedRef.current = true;
+                        startedRef.current = false;
+                        setStatus("error");
+                        pollingRef.current = true;
+                    },
+                });
+
+                sseCloseRef.current = close;
+            } catch (e) {
+                console.error("generate failed", e);
+                startedRef.current = false;
+                pollingRef.current = true;
+                setStatus("error");
+            }
+        },
+        [workflowId]
+    );
+
     return {
+        workflowProgress,
+
+        cases,
         status,
-        requirement,
-        pdfText,
-        testPoints,
-        bufferedTestPoints,
-        hasAnyOutput,
         progress,
+        caseCount,
+        hasAnyOutput,
+
         downloadReady,
         downloadUrl,
-        caseCount,
 
-        setRequirement,
         start,
-        stopGeneration,
         resetPipeline,
     };
 }

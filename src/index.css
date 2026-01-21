@@ -112,5 +112,32 @@
   animation: holo-core 2s ease-in-out infinite;
 }
 
+html, body {
+    font-family:
+            -apple-system,
+            BlinkMacSystemFont,
+            "PingFang SC",
+            "Hiragino Sans GB",
+            "Microsoft YaHei",
+            "Noto Sans CJK SC",
+            "Source Han Sans SC",
+            "Inter",
+            system-ui,
+            sans-serif;
+}
+@keyframes spin-slow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+@keyframes spin-reverse {
+    from { transform: rotate(360deg); }
+    to { transform: rotate(0deg); }
+}
+.animate-spin-slow {
+    animation: spin-slow 10s linear infinite;
+}
+.animate-spin-reverse {
+    animation: spin-reverse 6s linear infinite;
+}
 
 
